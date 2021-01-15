@@ -1,0 +1,39 @@
+name: CI
+
+on: push
+
+jobs:
+  build:
+    name: Build Image
+    runs-on: self-hosted-gke
+
+    services:
+      redis:
+        image: redis
+        ports: ['6379:6379']
+        options: --entrypoint redis-server
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v1
+        with:
+          fetch-depth: 1
+
+      - name: Setup Google Cloud SDK
+        uses: google-github-actions/setup-gcloud@master
+        with:
+          project_id: ${{ secrets.GCP_PROJECT_ID }}
+          export_default_credentials: true
+
+      - name: Authenticate Docker
+        run: |
+          curl -sLO https://github.com/GoogleCloudPlatform/docker-credential-gcr/releases/download/v2.0.2/docker-credential-gcr_linux_amd64-2.0.2.tar.gz
+          tar -xzf docker-credential-gcr_linux_amd64-2.0.2.tar.gz
+          sudo mv docker-credential-gcr /usr/local/bin/
+          gcloud auth configure-docker --quiet
+
+      - name: Docker Build
+        run: docker build -t gcr.io/${{ secrets.GCP_PROJECT_ID }}/httpbin/httpbin:latest .
+
+      - name: Docker Push
+        run: docker push gcr.io/${{ secrets.GCP_PROJECT_ID }}/httpbin/httpbin:latest
